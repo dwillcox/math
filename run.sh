@@ -1,3 +1,3 @@
 make clean
 make
-./driver
+./tester > testquad.out
