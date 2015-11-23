@@ -177,52 +177,56 @@ contains
     end do
   end subroutine laguerre_form
   
-  recursive function poly_coef_recur(m, k, roots) result(ckm)
-    double precision, dimension(:) :: roots
-    double precision :: ckm
+  subroutine poly_get_coefs(m, k, roots, coefs_m_k)
+    double precision, dimension(:), intent(in) :: roots
+    double precision, dimension(:,:), intent(inout) :: coefs_m_k
+    double precision :: cmk
     integer :: k, m
     integer :: i
     
-    write(*,*) 'In poly_coef_recur, got: m=',m,' k=',k
-    ! Return the k-th coefficient for the m-th construction polynomial
-    if ( k < 0 .or. m < 0 .or. m < k ) then
-       ckm = 0.0d0
-    else if ( k == 0 ) then
-       ckm = 1.0d0
-       do i = 1, m
-          ckm = ckm * (-roots(i))
-       end do
-    else
-       ckm = -roots(m) * poly_coef_recur(m-1, k, roots) + &
-            poly_coef_recur(m-1, k-1, roots)
+    ! Fills in the k-th coefficient for the m-th construction polynomial
+    cmk = 0.0d0 ! Ignore the case m < k and don't do anything to save evaluation
+    if ( k == m ) then ! m = k
+       cmk = 1.0d0
+    else if ( k < m ) then ! m > k
+       if ( k == 0 ) then
+          cmk = 1.0d0
+          do i = 1, m
+             cmk = cmk * (-roots(i))
+          end do
+       else if (k == m - 1) then
+          cmk = 0.0d0
+          do i = 1, m
+             cmk = cmk - roots(i)
+          end do
+       else
+          cmk = -roots(m) * coefs_m_k(m, k+1) + coefs_m_k(m, k)
+       end if
     end if
+    coefs_m_k(m+1, k+1) = cmk
+!    write(*,*) 'Got m = ',m,', k = ',k,', and cmk = ',cmk
     return
-  end function poly_coef_recur
+  end subroutine poly_get_coefs
   
   subroutine poly_root_to_coef(roots, coefs)
     double precision, dimension(:), intent(in)  :: roots
     double precision, dimension(:), intent(out) :: coefs
-    integer :: i, nr, nc, n
-    double precision :: fs, fp
+    double precision, allocatable :: coefs_m_k(:,:)
+    integer :: mi, ki, nr, nc, n
 
     nr = size(roots)
     nc = size(coefs)
     n = nc - 1
 
-    coefs(nc) = 1.0d0
-    if (n >= 1) then
-       fs = 0.0d0
-       do i = 1, nr
-          fs = fs - roots(i)
+    allocate( coefs_m_k(n+1, n+1) )
+    do mi = 0, n
+       do ki = 0, mi
+          call poly_get_coefs(mi, ki, roots, coefs_m_k)
        end do
-       coefs(nc-1) = fs
-       if (n >= 2) then
-          do i = 0, nc-2
-             write(*,*) 'i: ', i
-             coefs(i+1) = poly_coef_recur(nr, i, roots)
-          end do
-       end if
-    end if
+    end do
+
+    coefs(:) = coefs_m_k(n+1,:)
+    deallocate( coefs_m_k )
     return
   end subroutine poly_root_to_coef
   
